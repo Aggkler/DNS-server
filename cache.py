@@ -1,34 +1,46 @@
-import pickle
 import time
-
+from dnslib import RR
 
 class Cache:
     def __init__(self):
         self.cache = dict()
 
     def save_cache(self, path):
-        with open(path, "wb") as dump:
-            pickle.dump(self.cache, dump)
+        with open(path, "w", encoding="utf-8") as f:
+            for (rtype, rname), (records, ttl) in self.cache.items():
+                if time.time() < ttl:
+                    for record in records:
+                        f.write(f"{rtype};{str(rname)};{ttl};{record.toZone()}\n")
 
     def load_cache(self, path):
         try:
-            with open(path, "rb") as dump:
-                data = pickle.load(dump)
-                for key, (rdata, ttl) in data.items():
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split(";")
+                    if len(parts) != 4:
+                        continue
+                    rtype = int(parts[0])
+                    rname = parts[1]
+                    ttl = float(parts[2])
+                    zone_str = parts[3]
                     if time.time() < ttl:
-                        self.cache[key] = (rdata, ttl)
+                        rr = RR.fromZone(zone_str)[0]
+                        key = (rtype, rr.rname)
+                        if key not in self.cache:
+                            self.cache[key] = ([], ttl)
+                        self.cache[key][0].append(rr)
         except FileNotFoundError:
             pass
 
     def update_cache(self, key, records, ttl):
-        total_ttl = time.time() + ttl
-        self.cache[key] = (records, total_ttl)
+        self.cache[key] = (records, time.time() + ttl)
 
     def get_cache(self, key):
-        data = self.cache.get(key)
-        if data is None:
-            return
-        rdata, ttl = data
+        entry = self.cache.get(key)
+        if not entry:
+            return None
+        records, ttl = entry
         if time.time() > ttl:
             del self.cache[key]
-        return rdata
+            return None
+        return records

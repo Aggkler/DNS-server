@@ -7,7 +7,6 @@ DEFAULT_PORT = 8053
 
 def main():
     dns_server = DNS()
-    dns_server.cache.load_cache("cache")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((LOCALHOST, DEFAULT_PORT))
 
